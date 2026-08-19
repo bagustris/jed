@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JED - 辞書</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2216%22 fill=%22%231b2447%22/><text x=%2250%22 y=%2272%22 font-size=%2260%22 text-anchor=%22middle%22 fill=%22%23c9a227%22>%E8%BE%9E</text></svg>">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1b2447">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="app-header">
+  <button id="btn-settings" type="button" class="icon-btn settings-btn" aria-haspopup="dialog" aria-label="設定 Settings">
+    <span class="hamburger-icon"><span></span><span></span><span></span></span>
+  </button>
+  <h1>JED<span class="header-sub">辞書 &mdash; Japanese-English Dictionary</span></h1>
+</header>
+
+<nav class="main-nav" aria-label="Main">
+  <button type="button" class="nav-btn" data-view="search">検索<span>Search</span></button>
+  <button type="button" class="nav-btn" data-view="radicals">部首<span>Radicals</span></button>
+  <button type="button" class="nav-btn" data-view="notepad">ノート<span>Notepad</span></button>
+  <button type="button" class="nav-btn" data-view="history">履歴<span>History</span></button>
+</nav>
+
+<main id="view-root">
+
+  <section id="view-search" class="view">
+    <div class="search-bar">
+      <div class="search-mode-toggle" role="radiogroup" aria-label="Search language">
+        <button type="button" class="mode-btn" data-mode="ja">日本語<span>Japanese</span></button>
+        <button type="button" class="mode-btn" data-mode="en">English</button>
+      </div>
+      <div class="search-input-wrap">
+        <input id="search-input" type="text" inputmode="latin" autocomplete="off" autocapitalize="off" spellcheck="false"
+               placeholder="taberu, 食べる, or eat">
+        <div id="search-preview" class="search-preview" aria-live="polite"></div>
+      </div>
+    </div>
+    <div id="search-status" class="search-status"></div>
+    <div id="search-results" class="results-list"></div>
+  </section>
+
+  <section id="view-entry" class="view hidden">
+    <button type="button" class="back-btn" data-back>&larr; <span>戻る Back</span></button>
+    <div id="entry-detail"></div>
+  </section>
+
+  <section id="view-kanji" class="view hidden">
+    <button type="button" class="back-btn" data-back>&larr; <span>戻る Back</span></button>
+    <div id="kanji-detail"></div>
+  </section>
+
+  <section id="view-radicals" class="view hidden">
+    <p class="view-intro">部首を選んで、その部首を含む漢字を絞り込みます。<span>Select radicals to find kanji containing all of them.</span></p>
+    <div id="radical-selected" class="radical-selected"></div>
+    <div id="radical-picker"></div>
+    <h3 class="radical-results-heading hidden" id="radical-results-heading">一致する漢字 <span>Matching kanji</span></h3>
+    <div id="radical-results" class="kanji-grid"></div>
+  </section>
+
+  <section id="view-notepad" class="view hidden">
+    <div class="view-actions">
+      <button type="button" id="btn-export-notepad" class="text-btn">書き出す<span>Export as text</span></button>
+    </div>
+    <div id="notepad-tags" class="tag-filter"></div>
+    <div id="notepad-list" class="results-list"></div>
+  </section>
+
+  <section id="view-history" class="view hidden">
+    <div class="view-actions">
+      <button type="button" id="btn-clear-history" class="text-btn">履歴を消去<span>Clear history</span></button>
+    </div>
+    <div id="history-list" class="results-list"></div>
+  </section>
+
+</main>
+
+<div id="settings-overlay" class="settings-overlay hidden">
+  <div id="settings-panel" class="settings-panel" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+    <div class="settings-header">
+      <h2 id="settings-title">設定<span>Settings</span></h2>
+      <button id="btn-settings-close" type="button" class="icon-btn" aria-label="閉じる Close">&times;</button>
+    </div>
+
+    <div class="settings-row">
+      <span class="settings-row-label">ローマ字入力<span>Auto-convert romaji to kana while typing</span></span>
+      <label class="switch">
+        <input type="checkbox" id="setting-romaji-input">
+        <span class="switch-slider"></span>
+      </label>
+    </div>
+
+    <div class="settings-row">
+      <span class="settings-row-label">活用形をデフォルトで表示<span>Show conjugations expanded by default</span></span>
+      <label class="switch">
+        <input type="checkbox" id="setting-show-conjugation">
+        <span class="switch-slider"></span>
+      </label>
+    </div>
+
+    <div class="settings-row">
+      <span class="settings-row-label">例文のふりがな<span>Furigana in example sentences</span></span>
+      <label class="switch">
+        <input type="checkbox" id="setting-furigana">
+        <span class="switch-slider"></span>
+      </label>
+    </div>
+
+    <div class="settings-row settings-row-column">
+      <span class="settings-row-label">テーマ<span>Theme</span></span>
+      <div id="setting-theme" class="settings-segmented" role="radiogroup" aria-label="Theme">
+        <button type="button" class="segmented-btn" data-value="system">自動<span>System</span></button>
+        <button type="button" class="segmented-btn" data-value="light">ライト<span>Light</span></button>
+        <button type="button" class="segmented-btn" data-value="dark">ダーク<span>Dark</span></button>
+      </div>
+    </div>
+
+    <div class="settings-row settings-row-column">
+      <span class="settings-row-label">アプリとしてインストール<span>Install on PC &amp; smartphone</span></span>
+      <button id="btn-install" type="button" class="settings-install-btn hidden">インストール<span>Install</span></button>
+    </div>
+
+    <div class="settings-row settings-row-column settings-about">
+      <span class="settings-row-label">このアプリについて<span>About</span></span>
+      <p class="about-app">JED &mdash; Japanese-English Dictionary <span class="about-version">v1.1.0</span></p>
+      <p class="about-note">オリジナルのJED（umibouzu, 2011）の再現アプリです。データはJMdict/KANJIDIC2/KRADFILE/RADKFILE/KanjiVGより。<span>An independent recreation of JED (umibouzu, 2011). Dictionary data from JMdict/KANJIDIC2/KRADFILE/RADKFILE/KanjiVG &mdash; see CREDITS.md.</span></p>
+      <a class="about-link" href="https://github.com/bagustris/jed" target="_blank" rel="noopener noreferrer">貢献・問題報告<span>Contribute / report an issue on GitHub</span></a>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+<script src="js/kana-convert.js"></script>
+<script src="js/data-loader.js"></script>
+<script src="js/conjugation.js"></script>
+<script src="js/search.js"></script>
+<script src="js/radicals.js"></script>
+<script src="js/notepad.js"></script>
+<script src="js/history.js"></script>
+<script src="js/settings.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+{
+  "name": "JED - Japanese-English Dictionary",
+  "short_name": "JED",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#1b2447",
+  "theme_color": "#1b2447",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
