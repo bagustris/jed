@@ -59,13 +59,19 @@ KANJI_RE = re.compile(r"[一-鿿々]")  # BMP CJK Unified Ideographs + 々, deli
 
 
 def fetch_examples_utf(cache_path):
-    if os.path.exists(cache_path) and os.path.getsize(cache_path) > 10_000_000:
+    """Downloads+decompresses examples.utf, caching it for re-runs. Writes
+    to a .tmp path and os.replace()s it into place only once fully written,
+    so an interrupted download can never leave a truncated file at
+    cache_path for a later run to silently pick up as if it were complete."""
+    if os.path.exists(cache_path):
         return cache_path
     print(f"downloading {EXAMPLES_URL} ...", file=sys.stderr)
     gz_path = cache_path + ".gz"
     urllib.request.urlretrieve(EXAMPLES_URL, gz_path)
-    with gzip.open(gz_path, "rt", encoding="utf-8") as fin, open(cache_path, "w", encoding="utf-8") as fout:
+    tmp_path = cache_path + ".tmp"
+    with gzip.open(gz_path, "rt", encoding="utf-8") as fin, open(tmp_path, "w", encoding="utf-8") as fout:
         fout.write(fin.read())
+    os.replace(tmp_path, cache_path)
     return cache_path
 
 

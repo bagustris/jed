@@ -14,19 +14,14 @@ import os
 import re
 import sys
 
+from _common import find_one
+
 SCRATCH = sys.argv[1] if len(sys.argv) > 1 else "/tmp/jed-build"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA = os.path.join(ROOT, "data")
 
 APK_KANA = "/tmp/jed/extracted/com/umibouzu/japanese/kana"
 APK_RADICALS = "/tmp/jed/extracted/com/umibouzu/japanese/radicals/radicals.dat"
-
-
-def find_one(pattern):
-    matches = glob.glob(os.path.join(SCRATCH, pattern))
-    if not matches:
-        raise SystemExit(f"missing {pattern} in {SCRATCH} -- run download_sources.py first")
-    return matches[0]
 
 
 # ---------------------------------------------------------------- buckets --
@@ -74,7 +69,7 @@ def gloss_tokens(text):
 # ------------------------------------------------------------- word data --
 
 def build_words():
-    path = find_one("jmdict-eng-*.json")
+    path = find_one(SCRATCH, "jmdict-eng-*.json")
     with open(path, encoding="utf-8") as f:
         words = json.load(f)["words"]
 
@@ -165,8 +160,8 @@ def build_words():
 # ------------------------------------------------------------ kanji data --
 
 def build_kanji():
-    kanjidic_path = find_one("kanjidic2-en-*.json")
-    kradfile_path = find_one("kradfile-*.json")
+    kanjidic_path = find_one(SCRATCH, "kanjidic2-en-*.json")
+    kradfile_path = find_one(SCRATCH, "kradfile-*.json")
 
     with open(kanjidic_path, encoding="utf-8") as f:
         chars = json.load(f)["characters"]
@@ -256,7 +251,7 @@ def parse_radicals_dat():
 
 
 def build_radicals():
-    radkfile_path = find_one("radkfile-*.json")
+    radkfile_path = find_one(SCRATCH, "radkfile-*.json")
     with open(radkfile_path, encoding="utf-8") as f:
         radk = json.load(f)["radicals"]
 

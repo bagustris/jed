@@ -19,6 +19,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   coverage of multi-kanji compound words from ~12% to ~16%; the
   kanji-character-level list is used only as a last-resort fallback, and
   only for sentences that literally contain the whole word.
+- fetch_tatoeba_file() (and the pre-existing sibling
+  fetch_examples_utf() in build_furigana.py) wrote the decompressed cache file
+  directly at its final path. An interrupted download (network blip, disk full,
+  Ctrl-C) would leave a truncated file there, and the next run would silently
+  trust it forever since it only checked os.path.exists(). Fixed both to write
+  to a .tmp path and os.replace() into place atomically — a partial file can
+  never be mistaken for a complete one now. 
+- Hardened the Tatoeba TSV parsing with bounded maxsplit so a stray tab inside
+  sentence text can't crash the build with an unpacking error (cheap, no added
+  complexity).
+
+### Removed 
+- Removed a redundant word in jp substring scan in add_source_b() —
+  has_boundary_match() already does its own scan and returns False when the word
+  isn't present, so the extra check was pure wasted work on every candidate.
+- Extracted the find_one() helper (byte-identical across build_data.py, 
+  build_sentences.py, build_word_sentences.py) into a new shared
+  tools/_common.py, removing three copies of the same 5-line function.
+
 
 ## [1.1.0] - 2026-08-20
 

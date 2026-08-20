@@ -26,10 +26,11 @@ then shorter sentences first -- better for a dictionary UI than a corpus
 dump) and truncated to TARGET_PER_KANJI.
 """
 import collections
-import glob
 import json
 import os
 import sys
+
+from _common import find_one
 
 SCRATCH = sys.argv[1] if len(sys.argv) > 1 else "/tmp/jed-build"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -38,15 +39,8 @@ DATA = os.path.join(ROOT, "data")
 TARGET_PER_KANJI = 5
 
 
-def find_one(pattern):
-    matches = glob.glob(os.path.join(SCRATCH, pattern))
-    if not matches:
-        raise SystemExit(f"missing {pattern} in {SCRATCH} -- run download_sources.py first")
-    return matches[0]
-
-
 def main():
-    examples_path = find_one("jmdict-examples-eng-*.json")
+    examples_path = find_one(SCRATCH, "jmdict-examples-eng-*.json")
     with open(examples_path, encoding="utf-8") as f:
         words = json.load(f)["words"]
 
