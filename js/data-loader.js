@@ -58,6 +58,7 @@
   const kanjiData = () => fetchJSON('data/kanji.json');
   const radicalsData = () => fetchJSON('data/radicals.json');
   const kanjiSentences = () => fetchJSON('data/kanji-sentences.json');
+  const wordSentences = () => fetchJSON('data/word-sentences.json');
   const kanjiWords = () => fetchJSON('data/kanji-words.json');
 
   function kanjivgSvg(char) {
@@ -71,6 +72,6 @@
 
   return {
     kanaBucket, kanjiIndexBucket, englishBucket, kanjivgFilename,
-    fetchJSON, wordShard, kanjiIndexData, englishIndexData, kanjiData, radicalsData, kanjivgSvg, kanjiSentences, kanjiWords,
+    fetchJSON, wordShard, kanjiIndexData, englishIndexData, kanjiData, radicalsData, kanjivgSvg, kanjiSentences, wordSentences, kanjiWords,
   };
 });

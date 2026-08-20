@@ -318,7 +318,7 @@
 
     renderTagEditor(seq, shard);
     renderConjugation(entry, primaryReading, primaryKanji);
-    renderEntrySentences(primaryKanji);
+    renderEntrySentences(seq, primaryKanji);
   }
 
   function isKanjiChar(c) {
@@ -326,6 +326,24 @@
     // supplementary-plane kanji like 𠮟 (U+20B9F, the headword of 𠮟る) are
     // still recognized as clickable/kanji-detail-eligible characters.
     return /\p{Script=Han}/u.test(c);
+  }
+
+  // True if `word` occurs in `jp` with a kanji "word boundary" on both
+  // sides -- not embedded inside a longer kanji run (e.g. 牡丹 "peony"
+  // inside a sentence about 牡丹餅 "botamochi", a different word). Mirrors
+  // tools/build_word_sentences.py's has_boundary_match(), used there for
+  // the same reason.
+  function hasWordBoundaryMatch(word, jp) {
+    let start = 0;
+    for (;;) {
+      const idx = jp.indexOf(word, start);
+      if (idx === -1) return false;
+      const beforeOk = idx === 0 || !isKanjiChar(jp[idx - 1]);
+      const afterIdx = idx + word.length;
+      const afterOk = afterIdx >= jp.length || !isKanjiChar(jp[afterIdx]);
+      if (beforeOk && afterOk) return true;
+      start = idx + 1;
+    }
   }
 
   function renderTagEditor(seq, shard) {
@@ -464,25 +482,44 @@
     el.appendChild(frag);
   }
 
-  // Example sentences for a word entry: sourced from its primary kanji
-  // character's sentence list (data/kanji-sentences.json is keyed by
-  // character, not by word -- there's no per-word sentence corpus), shown
-  // directly below the conjugation table.
-  async function renderEntrySentences(primaryKanji) {
+  // Example sentences for a word entry, shown directly below the
+  // conjugation table. Prefer data/word-sentences.json, which is keyed by
+  // entry seq and holds sentences tied to this specific word -- either
+  // JMdict's own curated example, or (for compound words) a literal
+  // whole-word match against Tatoeba's full sentence corpus -- built by
+  // tools/build_word_sentences.py, which covers ~16% of multi-kanji
+  // compound words. For the rest, fall back to data/kanji-sentences.json,
+  // which is keyed by kanji CHARACTER instead of by word (broadcast to
+  // every kanji a sentence contains, for the kanji detail page) and
+  // filtered here (hasWordBoundaryMatch) to sentences that contain the
+  // whole word without it being embedded in a longer one -- without that
+  // filter, the 履歴書 "resume" page would show sentences about 履く "to
+  // wear" just because both contain 履. That word-boundary filter only
+  // works for multi-kanji compounds with no okurigana (nouns like 履歴書,
+  // 腕時計); words with a kana tail
+  // (conjugating verbs/adjectives) can't be matched this way, since the
+  // sentence may use a different inflected form, so the section is simply
+  // omitted for those when there's no word-level example.
+  async function renderEntrySentences(seq, primaryKanji) {
     const el = document.getElementById('entry-sentences-container');
     if (!el) return;
-    const firstKanjiChar = primaryKanji ? [...primaryKanji].find(isKanjiChar) : null;
-    if (!firstKanjiChar) { el.innerHTML = ''; return; }
 
-    let allSentences;
+    let sentences;
     try {
-      allSentences = await DataStore.kanjiSentences();
+      const allWordSentences = await DataStore.wordSentences();
+      sentences = allWordSentences[seq] || [];
+      if (!sentences.length && primaryKanji && primaryKanji.length > 1
+          && [...primaryKanji].every(isKanjiChar)) {
+        const firstKanjiChar = [...primaryKanji][0];
+        const allKanjiSentences = await DataStore.kanjiSentences();
+        const candidates = allKanjiSentences[firstKanjiChar] || [];
+        sentences = candidates.filter((s) => hasWordBoundaryMatch(primaryKanji, s.jp));
+      }
     } catch (e) {
       el.innerHTML = ''; // supplementary section -- fail quietly, don't block the rest of the page
       return;
     }
-    const sentences = allSentences[firstKanjiChar];
-    if (!sentences || !sentences.length) { el.innerHTML = ''; return; }
+    if (!sentences.length) { el.innerHTML = ''; return; }
 
     const furiganaOff = !settings.get().furiganaEnabled;
     const cards = sentences.map((s) => `

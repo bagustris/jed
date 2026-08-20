@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Add a `furigana` field to every sentence in data/kanji-sentences.json,
-mapping the corpus's own human-tagged word readings to each sentence rather
-than guessing from data/kanji.json's on'yomi/kun'yomi tables (unreliable for
-compounds and jukujikun).
+"""Add a `furigana` field to every sentence in data/kanji-sentences.json and
+data/word-sentences.json, mapping the corpus's own human-tagged word
+readings to each sentence rather than guessing from data/kanji.json's
+on'yomi/kun'yomi tables (unreliable for compounds and jukujikun).
 
 Source: EDRDG's raw indexed Tanaka Corpus file (examples.utf, same underlying
 corpus as jmdict-examples-eng but in its original alternating-line format,
@@ -23,17 +23,18 @@ every part but `surface` optional:
   - a trailing `~` is a suffix/compound marker, stripped.
 
 Usage:
-  python3 build_sentences.py /tmp/jed-build   # must run first
-  python3 build_furigana.py                   # downloads examples.utf itself
+  python3 build_sentences.py /tmp/jed-build        # must run first
+  python3 build_word_sentences.py /tmp/jed-build   # must run first
+  python3 build_furigana.py                        # downloads examples.utf itself
 
-Matches data/kanji-sentences.json's `jp` field against the corpus's `A:`
-text by exact string equality (same corpus, same sentences -- verified at
-100% match rate against the shipped dataset), then aligns each B: token
-against the `jp` string left to right, character-by-character, to build
-per-segment reading annotations. Sentences whose alignment can't complete
-(rare -- ~0.2% -- usually complex names/punctuation the simple tokenizer
-doesn't expect) are left without a `furigana` field; the frontend already
-falls back to plain text for those.
+Matches each sentence's `jp` field against the corpus's `A:` text by exact
+string equality (same corpus, same sentences -- verified at 100% match rate
+against the shipped dataset), then aligns each B: token against the `jp`
+string left to right, character-by-character, to build per-segment reading
+annotations. Sentences whose alignment can't complete (rare -- ~0.2% --
+usually complex names/punctuation the simple tokenizer doesn't expect) are
+left without a `furigana` field; the frontend already falls back to plain
+text for those.
 """
 import gzip
 import json
@@ -132,12 +133,20 @@ def load_corpus(path):
     return corpus
 
 
-def main():
-    sentences_path = os.path.join(DATA, "kanji-sentences.json")
-    with open(sentences_path, encoding="utf-8") as f:
-        kanji_sentences = json.load(f)
+SENTENCE_FILES = ["kanji-sentences.json", "word-sentences.json"]
 
-    unique_jp = {s["jp"] for sents in kanji_sentences.values() for s in sents}
+
+def main():
+    datasets = {}
+    unique_jp = set()
+    for name in SENTENCE_FILES:
+        path = os.path.join(DATA, name)
+        if not os.path.exists(path):
+            raise SystemExit(f"missing {path} -- run build_sentences.py / build_word_sentences.py first")
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        datasets[name] = data
+        unique_jp |= {s["jp"] for sents in data.values() for s in sents}
     print(f"unique jp sentences needing furigana: {len(unique_jp)}", file=sys.stderr)
 
     examples_path = fetch_examples_utf(os.path.join("/tmp", "examples.utf"))
@@ -164,19 +173,21 @@ def main():
     print(f"aligned successfully: {aligned}/{matched}", file=sys.stderr)
     print(f"aligned sentences with >=1 real reading: {with_reading}/{aligned}", file=sys.stderr)
 
-    applied = 0
-    for sents in kanji_sentences.values():
-        for s in sents:
-            fg = furigana_by_jp.get(s["jp"])
-            if fg is not None:
-                s["furigana"] = fg
-                applied += 1
+    for name, data in datasets.items():
+        applied = 0
+        for sents in data.values():
+            for s in sents:
+                fg = furigana_by_jp.get(s["jp"])
+                if fg is not None:
+                    s["furigana"] = fg
+                    applied += 1
 
-    with open(sentences_path, "w", encoding="utf-8") as f:
-        json.dump(kanji_sentences, f, ensure_ascii=False, separators=(",", ":"))
+        path = os.path.join(DATA, name)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, separators=(",", ":"))
 
-    size_mb = os.path.getsize(sentences_path) / 1e6
-    print(f"applied furigana to {applied} sentence objects; {sentences_path} now {size_mb:.2f} MB", file=sys.stderr)
+        size_mb = os.path.getsize(path) / 1e6
+        print(f"applied furigana to {applied} sentence objects; {path} now {size_mb:.2f} MB", file=sys.stderr)
 
 
 if __name__ == "__main__":

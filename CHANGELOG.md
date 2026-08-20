@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Word entry example sentences no longer show sentences about an unrelated
+  word that merely shares a kanji character (e.g. 履歴書 "resume" showing a
+  sentence about 履く "to wear," or 腕時計 "wristwatch" showing one about 腕
+  "arm"). Sentences JMdict itself attaches to a word's own sense are now
+  used first (`data/word-sentences.json`, built by the new
+  `tools/build_word_sentences.py`), then a literal whole-word search over
+  Tatoeba's full sentence corpus (CC BY 2.0 FR, single collective credit —
+  see `CREDITS.md`) for compound words JMdict didn't already cover, raising
+  coverage of multi-kanji compound words from ~12% to ~16%; the
+  kanji-character-level list is used only as a last-resort fallback, and
+  only for sentences that literally contain the whole word.
+
 ## [1.1.0] - 2026-08-20
 
 ### Added

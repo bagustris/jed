@@ -41,6 +41,24 @@ tags each sentence's words with their reading — rather than the JSON
 conversion above, which doesn't carry that per-word breakdown. See
 `tools/build_furigana.py`.
 
+**Tatoeba** (`data/word-sentences.json`, example sentences shown on the word
+entry page below the conjugation table) — sentence/translation pairs from
+<https://tatoeba.org/>, downloaded directly from their
+[exports](https://downloads.tatoeba.org/exports/), used under
+[CC BY 2.0 FR](https://creativecommons.org/licenses/by/2.0/fr/). Per
+Tatoeba's own [attribution guidance](https://en.wiki.tatoeba.org/articles/show/faq)
+for textual data, this single credit is sufficient — no per-sentence,
+per-contributor attribution is required (that's only requested for reuse of
+their *audio* corpus). Tatoeba's full sentence corpus is a superset of the
+Tanaka Corpus above (verified: 147,671 of its 147,836 sentences are
+contained in Tatoeba's export) plus roughly 85,000 more sentences from other
+contributors, so `tools/build_word_sentences.py` uses it as a second-tier
+source: JMdict's own curated examples first (best quality, tied to a
+specific word/sense), then a literal whole-word search over the full
+Tatoeba corpus for compound words JMdict didn't already cover. See that
+script's docstring for the exact method and `js/app.js`'s
+`renderEntrySentences()` for the coverage numbers this produces.
+
 **KanjiVG** (jōyō-kanji stroke-order diagrams, `data/kanjivg/`) — copyright
 (c) Ulrich Apel, <http://kanjivg.tagaini.net/>, released under the
 [Creative Commons Attribution-ShareAlike 3.0](https://creativecommons.org/licenses/by-sa/3.0/)
@@ -75,5 +93,6 @@ material rather than an EDRDG-licensed work.
 JMdict, KANJIDIC2, KRADFILE, RADKFILE, and the JMdict-with-examples/Tanaka
 Corpus file are all distributed under EDRDG's licence (share-alike,
 attribution required) — see <http://www.edrdg.org/edrdg/licence.html>.
-KanjiVG is CC BY-SA 3.0. Any redistribution of this project's `data/`
-directory should carry this file along with it.
+KanjiVG is CC BY-SA 3.0. Tatoeba's sentence corpus is CC BY 2.0 FR. Any
+redistribution of this project's `data/` directory should carry this file
+along with it.
