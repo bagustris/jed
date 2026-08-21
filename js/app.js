@@ -566,8 +566,10 @@
     `;
     const svg = el.querySelector('svg');
     svg.style.color = 'var(--accent)';
+    svg.style.cursor = 'pointer';
     animateStrokeOrder(svg);
     document.getElementById('btn-replay-stroke').addEventListener('click', () => animateStrokeOrder(svg));
+    svg.addEventListener('click', () => animateStrokeOrder(svg));
     document.getElementById('btn-toggle-numbers').addEventListener('click', () => {
       el.querySelector('.stroke-order-box').classList.toggle('show-numbers-off');
     });
@@ -582,8 +584,8 @@
       path.style.strokeDashoffset = String(len);
       // force reflow so the transition below animates from this state
       void path.getBoundingClientRect();
-      path.style.transition = 'stroke-dashoffset 0.35s ease-in-out';
-      path.style.transitionDelay = `${i * 0.3}s`;
+      path.style.transition = 'stroke-dashoffset 0.7s ease-in-out';
+      path.style.transitionDelay = `${i * 0.6}s`;
       requestAnimationFrame(() => { path.style.strokeDashoffset = '0'; });
     });
   }
