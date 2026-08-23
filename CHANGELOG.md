@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-08-24
+
+### Removed
+- Japanese and English buttons in the header were removed. The search is now automatically detected from the typed fonts (hiragana or romaji), and the user can override it in Settings. 
+
+### Fixed
+- Duplicate results in kanji search (js/search.js, searchJapanese)  
+- Misleading placeholder text (index.html)  
+
+## [1.1.1] - 2026-08-21
+
 ### Fixed
 - Word entry example sentences no longer show sentences about an unrelated
   word that merely shares a kanji character (e.g. 履歴書 "resume" showing a

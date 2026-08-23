@@ -29,13 +29,9 @@
 
   <section id="view-search" class="view">
     <div class="search-bar">
-      <div class="search-mode-toggle" role="radiogroup" aria-label="Search language">
-        <button type="button" class="mode-btn" data-mode="ja">日本語<span>Japanese</span></button>
-        <button type="button" class="mode-btn" data-mode="en">English</button>
-      </div>
       <div class="search-input-wrap">
         <input id="search-input" type="text" inputmode="latin" autocomplete="off" autocapitalize="off" spellcheck="false"
-               placeholder="taberu, 食べる, or eat">
+               placeholder="taberu or 食べる">
         <div id="search-preview" class="search-preview" aria-live="polite"></div>
       </div>
     </div>
@@ -94,6 +90,14 @@
     </div>
 
     <div class="settings-row">
+      <span class="settings-row-label">英語も検索<span>Also search English for Latin-letter input</span></span>
+      <label class="switch">
+        <input type="checkbox" id="setting-search-both">
+        <span class="switch-slider"></span>
+      </label>
+    </div>
+
+    <div class="settings-row">
       <span class="settings-row-label">活用形をデフォルトで表示<span>Show conjugations expanded by default</span></span>
       <label class="switch">
         <input type="checkbox" id="setting-show-conjugation">
@@ -125,7 +129,7 @@
 
     <div class="settings-row settings-row-column settings-about">
       <span class="settings-row-label">このアプリについて<span>About</span></span>
-      <p class="about-app">JED &mdash; Japanese-English Dictionary <span class="about-version">v1.1.0</span></p>
+      <p class="about-app">JED &mdash; Japanese-English Dictionary <span class="about-version">v1.1.2</span></p>
       <p class="about-note">データはJMdict/KANJIDIC2/KRADFILE/RADKFILE/KanjiVG/Tatoebaより。<span>Dictionary data from JMdict/KANJIDIC2/KRADFILE/RADKFILE/KanjiVG/Tatoeba &mdash; see CREDITS.md.</span></p>
       <a class="about-link" href="https://github.com/bagustris/jed" target="_blank" rel="noopener noreferrer">貢献・問題報告<span>Contribute / report an issue on GitHub</span></a>
     </div>

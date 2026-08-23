@@ -1,7 +1,10 @@
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
-const { containsKanji, rankWordShardResults, rankKanjiIndexResults, rankEnglishIndexResults } = require('../search.js');
+const {
+  containsKanji, rankWordShardResults, rankKanjiIndexResults, rankEnglishIndexResults,
+  isExactReadingMatch, mergeResults, rankMergedResults,
+} = require('../search.js');
 
 const ROOT = path.join(__dirname, '../..');
 const readJSON = (p) => JSON.parse(fs.readFileSync(path.join(ROOT, p), 'utf8'));
@@ -63,5 +66,68 @@ ok('containsKanji true for supplementary-plane kanji 𠮟る', containsKanji('�
   }
 }
 
-console.log(`search: ${pass} passed, ${fail} failed`);
-process.exit(fail ? 1 : 0);
+// isExactReadingMatch: exact conversion (e.g. romaji "taberu" -> たべる)
+// should short-circuit the English fallback; a bare prefix should not.
+{
+  const shard = readJSON('data/words/た.json');
+  const exactHits = rankWordShardResults(shard, 'たべる', 10).map((r) => ({ ...r, shard: 'た' }));
+  ok('exact query たべる is recognized as an exact reading match', isExactReadingMatch(exactHits, 'たべる'));
+  const prefixHits = rankWordShardResults(shard, 'たべ', 10).map((r) => ({ ...r, shard: 'た' }));
+  ok('prefix-only query たべ is not an exact reading match', !isExactReadingMatch(prefixHits, 'たべ'));
+  ok('empty hit list is never an exact match', !isExactReadingMatch([], 'たべる'));
+}
+
+// mergeResults: dedup by shard+seq, tracking which path(s) found each entry
+{
+  const jaHits = [
+    { seq: '1', shard: 'あ', entry: { k: [], r: [{ t: 'あい' }] } },
+    { seq: '2', shard: 'あ', entry: { k: [], r: [{ t: 'あお' }] } },
+  ];
+  const enHits = [
+    { seq: '2', shard: 'あ', k: 'あお', r: 'あお', exact: true }, // overlaps a JA hit
+    { seq: '3', shard: 'か', k: 'かく', r: 'かく', exact: false }, // EN-only
+  ];
+  const merged = mergeResults(jaHits, enHits);
+  ok('merge produces 3 distinct entries (2 JA + 1 EN-only, 1 overlap collapsed)', merged.length === 3);
+  const overlap = merged.find((r) => r.seq === '2' && r.shard === 'あ');
+  ok('overlapping entry keeps the JA entry payload', overlap.entry.r[0].t === 'あお');
+  ok('overlapping entry records both sources', overlap.sources.includes('ja') && overlap.sources.includes('en'));
+  const jaOnly = merged.find((r) => r.seq === '1');
+  ok('JA-only entry has sources: [ja]', jaOnly.sources.length === 1 && jaOnly.sources[0] === 'ja');
+  const enOnly = merged.find((r) => r.seq === '3');
+  ok('EN-only entry has sources: [en] and no entry yet', enOnly.sources.length === 1 && enOnly.sources[0] === 'en' && enOnly.entry === null);
+}
+
+// rankMergedResults: a common exact-reading match should outrank a rare
+// non-exact one regardless of which path(s) found them
+{
+  const results = [
+    { seq: '1', shard: 'あ', sources: ['en'], exact: false, entry: { r: [{ t: 'zzzzz', c: false }], k: [] } },
+    { seq: '2', shard: 'あ', sources: ['ja'], exact: false, entry: { r: [{ t: 'あい', c: true }], k: [] } },
+  ];
+  const ranked = rankMergedResults(results, 'あい');
+  ok('exact common JA match ranks above an unrelated rare EN-only hit', ranked[0].seq === '2');
+}
+
+// searchJapanese (kanji-index branch): a word with multiple kanji forms
+// that all match the query prefix (食べるラー油 / 食べる辣油, seq 2847337,
+// both start with 食べる) must surface once, not once per matching
+// headword -- the kanji index has one row per headword, so without a
+// dedup guard the same entry is pushed twice.
+async function testKanjiSearchDedup() {
+  global.fetch = async (url) => {
+    const p = path.join(ROOT, url);
+    if (!fs.existsSync(p)) return { ok: false, status: 404 };
+    return { ok: true, json: async () => JSON.parse(fs.readFileSync(p, 'utf8')) };
+  };
+  const { searchJapanese } = require('../search.js');
+  const hits = await searchJapanese('食べる', 40);
+  const seqs = hits.map((h) => h.seq);
+  ok('searchJapanese never returns the same seq twice for a multi-kanji-form word', new Set(seqs).size === seqs.length);
+  ok('食べるラー油 (seq 2847337) is still found despite dedup', seqs.includes('2847337'));
+}
+
+testKanjiSearchDedup().then(() => {
+  console.log(`search: ${pass} passed, ${fail} failed`);
+  process.exit(fail ? 1 : 0);
+});

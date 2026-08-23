@@ -94,18 +94,6 @@
   const searchResults = document.getElementById('search-results');
   const searchStatus = document.getElementById('search-status');
 
-  let searchMode = settings.get().searchMode;
-  document.querySelectorAll('.mode-btn').forEach((b) => {
-    b.classList.toggle('active', b.dataset.mode === searchMode);
-    b.addEventListener('click', () => {
-      searchMode = b.dataset.mode;
-      settings.set({ searchMode });
-      document.querySelectorAll('.mode-btn').forEach((x) => x.classList.toggle('active', x === b));
-      searchInput.placeholder = searchMode === 'ja' ? 'taberu, 食べる...' : 'eat, hawk...';
-      runSearch();
-    });
-  });
-
   function wordEntryPreview(entry) {
     const kanji = entry.k[0] ? entry.k[0].t : null;
     const reading = entry.r[0] ? entry.r[0].t : '';
@@ -134,11 +122,16 @@
     return `<ruby>${escapeHtml(kanjiHead)}<rt>${escapeHtml(readingHead)}</rt></ruby>${escapeHtml(tail)}`;
   }
 
-  function renderResultCard({ seq, shard, kanji, reading, gloss, common, pos }, onClick, opts) {
+  function renderResultCard({ seq, shard, kanji, reading, gloss, common, pos, sources }, onClick, opts) {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'result-card';
     const posStr = pos && pos.length ? `<span class="result-pos">${posLabel(pos[0])}</span>` : '';
+    // Only flag results that surfaced *purely* via the English gloss index --
+    // if a result also matched on the Japanese reading there's nothing
+    // surprising about it showing up, so no badge is needed.
+    const sourceBadge = (sources && sources.length === 1 && sources[0] === 'en')
+      ? '<span class="result-source-badge">EN</span>' : '';
     const headword = (opts && opts.furigana && kanji)
       ? `<span class="kanji-form furigana-headword">${wordFurigana(kanji, reading)}</span>`
       : (kanji
@@ -148,6 +141,7 @@
       <div class="result-headword">
         ${common ? '<span class="result-common-star">&#9733;</span>' : ''}
         ${headword}
+        ${sourceBadge}
       </div>
       <div class="result-gloss">${posStr}${escapeHtml(gloss)}</div>
     `;
@@ -175,34 +169,32 @@
     if (!raw) return;
 
     const mySeq = ++searchSeq;
-    let results = [];
+    const settingsNow = settings.get();
+    // Latin-letter input is ambiguous between romaji and an English word;
+    // kana/kanji input is unambiguously Japanese, so only the Latin case
+    // needs to search both directions.
+    const looksLatin = /^[a-zA-Z']+$/.test(raw);
+
+    let jaQuery = raw;
+    let jaHits, enHits = [];
     try {
-      if (searchMode === 'en') {
-        searchStatus.textContent = '検索中... Searching...';
-        const hits = await Search.searchEnglish(raw, 40);
+      if (looksLatin && settingsNow.romajiInput) {
+        const table = await KanaConvert.load();
         if (mySeq !== searchSeq) return;
-        results = hits.map((h) => ({ seq: h.seq, shard: h.shard, kanji: h.k, reading: h.r, gloss: '', common: false, pos: [] }));
-        // English hits carry only a preview, not glosses; fetch full entries to show a gloss.
-        const resolved = await Promise.all(results.map(async (r) => {
-          const entry = await Search.loadEntry(r.seq, r.shard);
-          return entry ? { ...r, ...wordEntryPreview(entry) } : r;
-        }));
+        jaQuery = KanaConvert.toHiragana(raw, table);
+      }
+      searchPreview.textContent = jaQuery !== raw ? jaQuery : '';
+      searchStatus.textContent = '検索中... Searching...';
+
+      jaHits = await Search.searchJapanese(jaQuery, 40);
+      if (mySeq !== searchSeq) return;
+
+      // Skip the English lookup entirely once Japanese already found what
+      // the user was almost certainly after (e.g. "taberu" exact-matching
+      // 食べる/たべる) -- saves a fetch/render pass for the common case.
+      if (looksLatin && settingsNow.searchBoth && !Search.isExactReadingMatch(jaHits, jaQuery)) {
+        enHits = await Search.searchEnglish(raw, 40);
         if (mySeq !== searchSeq) return;
-        results = resolved;
-      } else {
-        const settingsNow = settings.get();
-        const looksLatin = /^[a-zA-Z']+$/.test(raw);
-        let query = raw;
-        if (looksLatin && settingsNow.romajiInput) {
-          const table = await KanaConvert.load();
-          if (mySeq !== searchSeq) return;
-          query = KanaConvert.toHiragana(raw, table);
-        }
-        searchPreview.textContent = query !== raw ? query : '';
-        searchStatus.textContent = '検索中... Searching...';
-        const hits = await Search.searchJapanese(query, 40);
-        if (mySeq !== searchSeq) return;
-        results = hits.map((h) => ({ seq: h.seq, shard: h.shard, ...wordEntryPreview(h.entry) }));
       }
     } catch (e) {
       // A stale request that lost the race (a newer doSearch() already ran
@@ -211,6 +203,29 @@
       searchStatus.textContent = '検索エラー Search failed';
       return;
     }
+
+    // Merge both hit lists, deduping by shard+seq while tracking which
+    // path(s) surfaced each entry (for the "EN" source badge). Japanese
+    // hits already carry a full entry; English hits carry only a preview,
+    // so those still need a fetch to get a gloss.
+    const merged = Search.mergeResults(jaHits, enHits);
+
+    let resolved;
+    try {
+      resolved = await Promise.all(merged.map(async (r) => {
+        const entry = r.entry || await Search.loadEntry(r.seq, r.shard);
+        return entry ? { ...r, entry } : null;
+      }));
+    } catch (e) {
+      if (mySeq !== searchSeq) return;
+      searchStatus.textContent = '検索エラー Search failed';
+      return;
+    }
+    if (mySeq !== searchSeq) return;
+    resolved = resolved.filter(Boolean);
+
+    const ranked = Search.rankMergedResults(resolved, jaQuery);
+    const results = ranked.map((r) => ({ seq: r.seq, shard: r.shard, sources: r.sources, ...wordEntryPreview(r.entry) }));
 
     searchStatus.textContent = results.length ? `${results.length}件 results` : '';
     if (!results.length) {
@@ -226,7 +241,6 @@
   }
 
   searchInput.addEventListener('input', runSearch);
-  searchInput.placeholder = searchMode === 'ja' ? 'taberu, 食べる...' : 'eat, hawk...';
 
   // ============================= Entry detail =============================
 
@@ -764,6 +778,7 @@
   document.getElementById('btn-settings').addEventListener('click', () => {
     const s = settings.get();
     document.getElementById('setting-romaji-input').checked = s.romajiInput;
+    document.getElementById('setting-search-both').checked = s.searchBoth;
     document.getElementById('setting-show-conjugation').checked = s.showConjugationByDefault;
     document.getElementById('setting-furigana').checked = s.furiganaEnabled;
     settingsOverlay.classList.remove('hidden');
@@ -773,6 +788,10 @@
 
   document.getElementById('setting-romaji-input').addEventListener('change', (e) => {
     settings.set({ romajiInput: e.target.checked });
+  });
+  document.getElementById('setting-search-both').addEventListener('change', (e) => {
+    settings.set({ searchBoth: e.target.checked });
+    runSearch();
   });
   document.getElementById('setting-show-conjugation').addEventListener('change', (e) => {
     settings.set({ showConjugationByDefault: e.target.checked });

@@ -78,6 +78,55 @@
     return out.slice(0, cap);
   }
 
+  // True when the top-ranked Japanese hit is an exact reading match for
+  // queryKana -- rankWordShardResults already sorts exact matches first, so
+  // checking just the top hit is sufficient. Used to skip an English search
+  // once Japanese has already found what the user was almost certainly
+  // looking for (e.g. "taberu" -> exact hit on 食べる/たべる).
+  function isExactReadingMatch(jaHits, queryKana) {
+    return jaHits.length > 0 && jaHits[0].entry.r.some((r) => r.t === queryKana);
+  }
+
+  // Merge Japanese + English hit lists into one deduped list, tracking which
+  // path(s) surfaced each entry (for a source badge in the UI). English hits
+  // don't carry a full entry yet (resolved later via loadEntry); Japanese
+  // hits already do.
+  function mergeResults(jaHits, enHits) {
+    const merged = [];
+    const indexByKey = new Map();
+    for (const h of jaHits) {
+      indexByKey.set(`${h.shard}#${h.seq}`, merged.length);
+      merged.push({ seq: h.seq, shard: h.shard, entry: h.entry, sources: ['ja'], exact: false });
+    }
+    for (const h of enHits) {
+      const key = `${h.shard}#${h.seq}`;
+      if (indexByKey.has(key)) {
+        const r = merged[indexByKey.get(key)];
+        r.sources.push('en');
+        r.exact = r.exact || !!h.exact;
+      } else {
+        indexByKey.set(key, merged.length);
+        merged.push({ seq: h.seq, shard: h.shard, entry: null, sources: ['en'], exact: !!h.exact });
+      }
+    }
+    return merged;
+  }
+
+  // Rank a merged, entry-resolved result list by relevance. Reuses the
+  // Japanese word-match score so results from either path compare on the
+  // same scale, with a bonus for an exact English token match and for being
+  // found via both paths.
+  function rankMergedResults(results, queryKana) {
+    return results
+      .map((r) => {
+        let score = r.entry ? scoreWordMatch(r.entry, queryKana) : 0;
+        if (r.sources.includes('en') && r.exact) score += 15;
+        if (r.sources.length > 1) score += 5;
+        return { ...r, score };
+      })
+      .sort((a, b) => b.score - a.score);
+  }
+
   function groupBy(arr, fn) {
     const m = new Map();
     for (const item of arr) {
@@ -98,11 +147,18 @@
       const matches = rankKanjiIndexResults(idx, query, limit || 50);
       const byShard = groupBy(matches, (m) => m.shard);
       const results = [];
+      const seenSeqs = new Set();
       for (const [shard, refs] of byShard) {
         const shardData = await DataStore.wordShard(shard);
         for (const ref of refs) {
+          // A single word can have multiple kanji headwords that all match
+          // the query prefix (e.g. 食べるラー油 and its alt form 食べる辣油
+          // both start with 食べる) -- the kanji index has one row per
+          // headword, so without this guard the same entry would be pushed
+          // once per matching headword instead of once per matching word.
+          if (seenSeqs.has(ref.seq)) continue;
           const entry = shardData[ref.seq];
-          if (entry) results.push({ seq: ref.seq, shard, entry });
+          if (entry) { seenSeqs.add(ref.seq); results.push({ seq: ref.seq, shard, entry }); }
         }
       }
       return results;
@@ -127,6 +183,7 @@
 
   return {
     containsKanji, scoreWordMatch, rankWordShardResults, rankKanjiIndexResults, rankEnglishIndexResults,
+    isExactReadingMatch, mergeResults, rankMergedResults,
     searchJapanese, searchEnglish, loadEntry,
   };
 });

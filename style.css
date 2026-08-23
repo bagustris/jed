@@ -146,21 +146,6 @@ html, body {
 
 .search-bar { position: sticky; top: 0; background: var(--bg); padding-top: 0.2rem; z-index: 5; }
 
-.search-mode-toggle { display: flex; gap: 0.4rem; margin-bottom: 0.5rem; }
-
-.mode-btn {
-  flex: 1;
-  background: var(--card-bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  color: var(--fg-muted);
-  cursor: pointer;
-  padding: 0.5rem;
-  font-size: 0.85rem;
-}
-.mode-btn span { display: block; font-size: 0.62rem; }
-.mode-btn.active { color: #fff; background: var(--accent); border-color: var(--accent); }
-
 .search-input-wrap { position: relative; }
 
 #search-input {
@@ -206,6 +191,15 @@ html, body {
 .result-common-star { color: var(--accent); margin-right: 0.3rem; font-size: 0.8rem; }
 .result-gloss { font-size: 0.85rem; color: var(--fg-muted); margin-top: 0.2rem; }
 .result-pos { font-size: 0.68rem; color: var(--accent-dark); margin-right: 0.4rem; }
+.result-source-badge {
+  font-size: 0.62rem;
+  color: var(--fg-muted);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0 0.3rem;
+  margin-left: 0.4rem;
+  vertical-align: middle;
+}
 
 .empty-state { color: var(--fg-muted); font-size: 0.85rem; padding: 1rem 0.2rem; text-align: center; }
 .empty-state span { display: block; font-size: 0.75rem; margin-top: 0.2rem; }
