@@ -44,6 +44,20 @@
       .catch(() => toast('コピーできませんでした'));
   }
 
+  // Sentence playback is an explicit, best-effort aid. It is deliberately
+  // separate from search and dictionary data, so the app still works fully
+  // when a browser does not provide speech synthesis.
+  function canSpeakJapanese() {
+    return typeof window !== 'undefined' && !!window.speechSynthesis;
+  }
+  function speakJapanese(text) {
+    if (!text || !canSpeakJapanese()) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'ja-JP';
+    window.speechSynthesis.speak(utterance);
+  }
+
   // --- theme ---
   function applyTheme() {
     const { theme } = settings.get();
@@ -545,7 +559,7 @@
     const furiganaOff = !settings.get().furiganaEnabled;
     const cards = sentences.map((s) => `
       <div class="sentence-card">
-        <div class="sentence-jp${furiganaOff ? ' furigana-off' : ''}">${renderSentenceJp(s)}</div>
+        <button type="button" class="sentence-jp${furiganaOff ? ' furigana-off' : ''}" aria-label="例文を読み上げる Play example sentence">${renderSentenceJp(s)}</button>
         <div class="sentence-en">${escapeHtml(s.en)}</div>
       </div>
     `).join('');
@@ -555,6 +569,12 @@
         <div class="sentence-list">${cards}</div>
       </div>
     `;
+    if (canSpeakJapanese()) {
+      el.querySelectorAll('.sentence-jp').forEach((sentence, index) => {
+        sentence.classList.add('is-playable');
+        sentence.addEventListener('click', () => speakJapanese(sentences[index]?.jp));
+      });
+    }
   }
 
   async function renderStrokeOrder(char, jouyo) {
@@ -791,6 +811,7 @@
     settingsOverlay.classList.remove('hidden');
   });
   document.getElementById('btn-settings-close').addEventListener('click', () => settingsOverlay.classList.add('hidden'));
+  document.getElementById('btn-home-title').addEventListener('click', () => { location.hash = '#/search'; });
   settingsOverlay.addEventListener('click', (e) => { if (e.target === settingsOverlay) settingsOverlay.classList.add('hidden'); });
 
   document.getElementById('setting-romaji-input').addEventListener('change', (e) => {
