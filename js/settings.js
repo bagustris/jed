@@ -9,7 +9,7 @@
 
   const KEY = 'jed-settings';
   const DEFAULTS = {
-    searchBoth: false, // for Latin/ambiguous input, also search English glosses (not just romaji->kana)
+    searchBoth: true, // for Latin/ambiguous input, also search English glosses (not just romaji->kana)
     theme: 'system', // 'system' | 'light' | 'dark'
     romajiInput: true, // auto-convert romaji to kana as you type
     showConjugationByDefault: true, // expand the conjugation table on entry-view load, vs. collapsed

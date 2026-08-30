@@ -127,6 +127,85 @@
       .sort((a, b) => b.score - a.score);
   }
 
+  // Bounded Levenshtein distance between two strings. `maxDist` is only an
+  // early-exit hint via the length check below, not a hard cap on the DP --
+  // callers compare the result against their own threshold.
+  function levenshtein(a, b, maxDist) {
+    const m = a.length, n = b.length;
+    if (Math.abs(m - n) > maxDist) return maxDist + 1;
+    let prev = new Array(n + 1);
+    for (let j = 0; j <= n; j++) prev[j] = j;
+    for (let i = 1; i <= m; i++) {
+      const curr = new Array(n + 1);
+      curr[0] = i;
+      for (let j = 1; j <= n; j++) {
+        const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+        curr[j] = Math.min(curr[j - 1] + 1, prev[j] + 1, prev[j - 1] + cost);
+      }
+      prev = curr;
+    }
+    return prev[n];
+  }
+
+  // Minimum edit distance to turn `query` into *some prefix* of `text`
+  // (rather than the whole of `text`) -- e.g. query "がくせ" against text
+  // "がくせい" should score as an exact (distance-0) prefix match, not
+  // penalized for the trailing "い" it hasn't typed yet. Only prefix lengths
+  // within maxDist of query's own length can possibly score <= maxDist, so
+  // that's the only range worth checking.
+  function fuzzyPrefixDistance(query, text, maxDist) {
+    const lo = Math.max(0, query.length - maxDist);
+    const hi = Math.min(text.length, query.length + maxDist);
+    let best = maxDist + 1;
+    for (let k = lo; k <= hi; k++) {
+      const d = levenshtein(query, text.slice(0, k), maxDist);
+      if (d < best) best = d;
+    }
+    return best;
+  }
+
+  // How many kana-level edits (dropped/extra/substituted mora) to tolerate,
+  // scaled by query length -- a 1-character query is too short to fuzzy
+  // match without drowning in false positives, longer queries can tolerate
+  // more of the kind of typo this is meant for (e.g. "gaksei" missing the
+  // "u" in "gakusei", or "shogakko" missing both long-vowel "u"s in
+  // "shougakkou").
+  function fuzzyTolerance(len) {
+    if (len <= 2) return 0;
+    if (len <= 4) return 1;
+    return 2;
+  }
+
+  // Fuzzy fallback over a word shard, only meant to be tried once an exact
+  // prefix search (rankWordShardResults) comes back empty -- it's a strict
+  // superset of exact matches (distance 0) but much more expensive to rank,
+  // so running it unconditionally would cost a full shard scan on every
+  // keystroke of a query that's already matching fine.
+  //
+  // Only catches typos within the query's own first character, since that's
+  // the character DataStore.kanaBucket used to pick which shard to fetch in
+  // the first place -- a typo'd first kana lands in the wrong shard entirely
+  // and isn't recoverable here.
+  function rankWordShardResultsFuzzy(shardObj, queryKana, limit) {
+    const maxDist = fuzzyTolerance(queryKana.length);
+    if (maxDist === 0) return [];
+    const results = [];
+    for (const [seq, entry] of Object.entries(shardObj)) {
+      let best = maxDist + 1;
+      for (const r of entry.r) {
+        const d = fuzzyPrefixDistance(queryKana, r.t, maxDist);
+        if (d < best) best = d;
+      }
+      if (best <= maxDist) {
+        const common = entry.r.some((r) => r.c) || entry.k.some((k) => k.c);
+        const score = -best * 20 + (common ? 10 : 0) - (entry.r[0] ? entry.r[0].t.length : 0) * 0.1;
+        results.push({ seq, entry, score, distance: best });
+      }
+    }
+    results.sort((a, b) => b.score - a.score);
+    return results.slice(0, limit || 50).map(({ seq, entry, distance }) => ({ seq, entry, fuzzy: true, distance }));
+  }
+
   function groupBy(arr, fn) {
     const m = new Map();
     for (const item of arr) {
@@ -165,7 +244,13 @@
     }
     const bucket = DataStore.kanaBucket(firstChar(query));
     const shardData = await DataStore.wordShard(bucket);
-    return rankWordShardResults(shardData, query, limit || 50).map(({ seq, entry }) => ({ seq, shard: bucket, entry }));
+    const exact = rankWordShardResults(shardData, query, limit || 50).map(({ seq, entry }) => ({ seq, shard: bucket, entry }));
+    if (exact.length) return exact;
+    // No exact/prefix match -- fall back to fuzzy matching within the same
+    // shard so a small typo (e.g. "gaksei" for "gakusei", missing "u") still
+    // finds the intended word instead of an empty result list.
+    const fuzzy = rankWordShardResultsFuzzy(shardData, query, limit || 50);
+    return fuzzy.map(({ seq, entry, distance }) => ({ seq, shard: bucket, entry, fuzzy: true, distance }));
   }
 
   async function searchEnglish(token, limit) {
@@ -184,6 +269,7 @@
   return {
     containsKanji, scoreWordMatch, rankWordShardResults, rankKanjiIndexResults, rankEnglishIndexResults,
     isExactReadingMatch, mergeResults, rankMergedResults,
+    levenshtein, fuzzyPrefixDistance, rankWordShardResultsFuzzy,
     searchJapanese, searchEnglish, loadEntry,
   };
 });

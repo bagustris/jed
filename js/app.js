@@ -189,6 +189,13 @@
       jaHits = await Search.searchJapanese(jaQuery, 40);
       if (mySeq !== searchSeq) return;
 
+      // jaHits came back via the fuzzy typo-tolerance fallback (exact/prefix
+      // search found nothing) -- surface the closest matched reading so the
+      // correction isn't silent.
+      if (jaHits.length && jaHits[0].fuzzy) {
+        searchPreview.textContent = `${jaQuery} → ${jaHits[0].entry.r[0].t}?`;
+      }
+
       // Skip the English lookup entirely once Japanese already found what
       // the user was almost certainly after (e.g. "taberu" exact-matching
       // 食べる/たべる) -- saves a fetch/render pass for the common case.

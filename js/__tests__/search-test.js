@@ -4,7 +4,9 @@ const path = require('path');
 const {
   containsKanji, rankWordShardResults, rankKanjiIndexResults, rankEnglishIndexResults,
   isExactReadingMatch, mergeResults, rankMergedResults,
+  levenshtein, fuzzyPrefixDistance, rankWordShardResultsFuzzy,
 } = require('../search.js');
+const { buildTable, toHiragana } = require('../kana-convert.js');
 
 const ROOT = path.join(__dirname, '../..');
 const readJSON = (p) => JSON.parse(fs.readFileSync(path.join(ROOT, p), 'utf8'));
@@ -107,6 +109,38 @@ ok('containsKanji true for supplementary-plane kanji 𠮟る', containsKanji('�
   ];
   const ranked = rankMergedResults(results, 'あい');
   ok('exact common JA match ranks above an unrelated rare EN-only hit', ranked[0].seq === '2');
+}
+
+// levenshtein / fuzzyPrefixDistance: basic sanity
+{
+  ok('levenshtein identical strings is 0', levenshtein('abc', 'abc', 2) === 0);
+  ok('levenshtein one substitution is 1', levenshtein('abc', 'abd', 2) === 1);
+  ok('levenshtein one insertion is 1', levenshtein('ab', 'abc', 2) === 1);
+  ok('levenshtein beyond maxDist reports something greater than maxDist', levenshtein('abc', 'xyz', 1) > 1);
+  ok('fuzzyPrefixDistance matches an exact prefix at distance 0', fuzzyPrefixDistance('がくせ', 'がくせい', 2) === 0);
+  ok('fuzzyPrefixDistance finds a single dropped-mora typo at distance 1', fuzzyPrefixDistance('がkせい', 'がくせい', 2) === 1);
+}
+
+// rankWordShardResultsFuzzy: typo-tolerant fallback against real shard data,
+// using the actual romaji->kana table so the query matches what doSearch()
+// would actually produce.
+{
+  const table = buildTable(readJSON('data/kana-romaji.json'));
+
+  // "gaksei" (missing the "u" in "gakusei") should still find 学生 (がくせい).
+  const q1 = toHiragana('gaksei', table);
+  const shard1 = readJSON(`data/words/${[...q1][0]}.json`);
+  ok('exact search for the broken conversion finds nothing', rankWordShardResults(shard1, q1, 10).length === 0);
+  const fuzzy1 = rankWordShardResultsFuzzy(shard1, q1, 10);
+  ok('fuzzy fallback for "gaksei" finds a がくせい reading', fuzzy1.some((r) => r.entry.r.some((rd) => rd.t.startsWith('がくせい'))));
+
+  // "shogakko" (missing both long-vowel "u"s in "shougakkou") should still
+  // find 小学校 (しょうがっこう).
+  const q2 = toHiragana('shogakko', table);
+  const shard2 = readJSON(`data/words/${[...q2][0]}.json`);
+  ok('exact search for the broken conversion finds nothing', rankWordShardResults(shard2, q2, 10).length === 0);
+  const fuzzy2 = rankWordShardResultsFuzzy(shard2, q2, 10);
+  ok('fuzzy fallback for "shogakko" finds a しょうがっこう reading', fuzzy2.some((r) => r.entry.r.some((rd) => rd.t.startsWith('しょうがっこう'))));
 }
 
 // searchJapanese (kanji-index branch): a word with multiple kanji forms
