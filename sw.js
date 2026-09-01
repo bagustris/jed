@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'jed-v3';
+const CACHE_VERSION = 'jed-v4';
 
 // Only the app shell + the two small tables needed immediately (romaji-kana
 // conversion, radical picker) are precached. Everything else under data/ --
