@@ -869,6 +869,19 @@
   // reloads. The explicit reg.update() call forces an immediate byte-level
   // check on every load rather than waiting on the browser's own timer.
   if ('serviceWorker' in navigator) {
+    // A returning visitor's tab keeps running whatever JS it already loaded
+    // even after a new service worker activates mid-session (stale-while-
+    // revalidate only updates the cache for the *next* load) -- reload once
+    // so a deployed fix takes effect without the user having to know to
+    // hard-refresh. Guarded on `hadController` so this doesn't fire (and
+    // reload) a brand-new install, which has no prior controller to replace.
+    const hadController = !!navigator.serviceWorker.controller;
+    let refreshed = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (refreshed || !hadController) return;
+      refreshed = true;
+      window.location.reload();
+    });
     window.addEventListener('load', async () => {
       try {
         const reg = await navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' });
